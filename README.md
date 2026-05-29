@@ -2,7 +2,7 @@
 
 > 本地优先的 Android 日常流水账 App，支持一句话 AI 快记、随手记 Excel 导入、账本检索、月度/年度统计和 JSON 备份。
 
-![记一下首页截图](docs/images/jiyixia-home.png)
+![记一下 App 页面截图](docs/images/jiyixia-showcase.png)
 
 ## 简介
 
