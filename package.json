@@ -2,6 +2,16 @@
   "name": "jiyixia",
   "private": true,
   "version": "0.1.0",
+  "description": "本地优先的 Android 日常流水账 App，支持 AI 快记、Excel 导入和月度/年度统计。",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiaoLi1991-star/jiyixia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/XiaoLi1991-star/jiyixia/issues"
+  },
+  "homepage": "https://github.com/XiaoLi1991-star/jiyixia#readme",
   "type": "module",
   "scripts": {
     "dev": "vite",
