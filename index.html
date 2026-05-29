@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f0eadb" />
+    <title>记一下</title>
+    <script>
+      window.Capacitor = window.Capacitor || {};
+      window.Capacitor.triggerEvent = window.Capacitor.triggerEvent || function (eventName, target, eventData) {
+        var receiver = target === 'window' ? window : document;
+        receiver.dispatchEvent(new CustomEvent(eventName, { detail: eventData }));
+      };
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

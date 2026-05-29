@@ -1,0 +1,38 @@
+{
+  "name": "jiyixia",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:mobile": "vite build --mode mobile",
+    "preview": "vite preview",
+    "check": "tsc -b --noEmit",
+    "test": "vitest run",
+    "cap:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.1.1",
+    "@capacitor/core": "^7.0.0",
+    "lucide-react": "^0.511.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "read-excel-file": "^9.0.10",
+    "recharts": "^3.3.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "@types/node": "^22.15.30",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.4.1",
+    "jsdom": "^27.4.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.0.18"
+  }
+}
