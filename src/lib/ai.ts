@@ -18,6 +18,20 @@ export interface AiEntryRecord {
   warnings?: string[]
 }
 
+const AI_CATEGORY_HINTS = [
+  '早餐/早饭/包子/牛奶 -> 食品酒水 / 早餐',
+  '午饭/午餐/中饭/食堂 -> 食品酒水 / 中餐',
+  '晚饭/晚餐/外卖/餐厅 -> 食品酒水 / 晚餐 或 外出美食',
+  '停车/停车费 -> 行车交通 / 停车',
+  '加油/油费 -> 行车交通 / 加油',
+  '电费/水费/燃气/物业/快递 -> 居家生活中对应二级分类',
+  '房贷/保险/税费 -> 金融保险中对应二级分类',
+  '宝宝/孩子/娃/奶粉/尿不湿/绘本 -> 宝宝费用中最接近二级分类',
+  '工资/薪水 -> 职业收入 / 工资收入',
+  '公积金 -> 职业收入 / 公积金提现',
+  '租房补贴/补贴 -> 其他收入 / 租房补贴'
+]
+
 export function aiEntryMessages(input: string, categories: Category[]) {
   const dictionary = categories.map(category => ({
     type: category.type,
@@ -31,7 +45,10 @@ export function aiEntryMessages(input: string, categories: Category[]) {
         '你是一个个人流水账录入助手。',
         '只把用户输入解析成 JSON，不要输出解释。',
         '金额默认按人民币“元”理解；如果用户明确写“万”，请换算成元。',
+        '用户可能一次说多笔流水，请拆成多条 records。',
         '只能使用给定分类表里的一级分类和二级分类；无法判断时选择最接近分类并降低 confidence。',
+        '这是个人账本，memberName 固定输出空字符串。',
+        '把商家放入 merchant；把食材、用途、补充说明等保留到 note，不要丢备注。',
         '所有记录都只是待确认草稿，不要声称已经入账。'
       ].join('\n')
     },
@@ -40,6 +57,9 @@ export function aiEntryMessages(input: string, categories: Category[]) {
       content: [
         '分类表：',
         JSON.stringify(dictionary),
+        '',
+        '用户历史账本里的常用分类习惯：',
+        AI_CATEGORY_HINTS.join('\n'),
         '',
         '输出 JSON 格式：',
         '{"records":[{"type":"expense|income","date":"YYYY-MM-DD HH:mm:ss or empty","category":"一级分类","subcategory":"二级分类","amountYuan":number,"accountName":"string","memberName":"string","merchant":"string","note":"string","confidence":number,"warnings":["string"]}]}',
@@ -87,7 +107,7 @@ export function createDraftsFromAiRecords(records: AiEntryRecord[], input: strin
       accountName: normalizeName(record.accountName) || '现金',
       currency: 'CNY',
       amountCents,
-      memberName: normalizeName(record.memberName) || '朱建华',
+      memberName: '',
       merchant: normalizeName(record.merchant),
       projectCategory: '',
       projectName: '',

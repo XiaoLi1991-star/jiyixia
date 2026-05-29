@@ -9,6 +9,10 @@ export interface LedgerSearchOptions {
   type: TransactionType | 'all'
   query: string
   aiAssist: boolean
+  dateFilter?: {
+    year?: string
+    month?: string
+  }
   now?: Date
 }
 
@@ -80,6 +84,7 @@ export function searchLedger(options: LedgerSearchOptions): LedgerSearchResult {
     .filter(item => item.status === 'confirmed')
     .filter(item => options.type === 'all' || item.type === options.type)
     .filter(item => isInPeriod(item, options.period, now))
+    .filter(item => isInDateFilter(item, options.dateFilter))
     .map(item => ({ transaction: item, text: createSearchText(item, options.categories) }))
 
   const items = records.filter(record => {
@@ -110,16 +115,24 @@ function isInPeriod(transaction: Transaction, period: LedgerPeriod, now: Date) {
   return date.startsWith(String(now.getFullYear()))
 }
 
+function isInDateFilter(transaction: Transaction, dateFilter: LedgerSearchOptions['dateFilter']) {
+  if (!dateFilter) return true
+  const date = transaction.date.slice(0, 10)
+  if (dateFilter.month) return date.startsWith(dateFilter.month)
+  if (dateFilter.year) return date.startsWith(dateFilter.year)
+  return true
+}
+
 function createSearchText(transaction: Transaction, categories: Category[]) {
   const category = categories.find(item => item.id === transaction.categoryId)
   const subcategory = category?.subcategories.find(item => item.id === transaction.subcategoryId)
   const amountYuan = String(transaction.amountCents / 100)
   return [
+    ...createDateTerms(transaction.date),
     transaction.type === 'income' ? '收入' : '支出',
     category?.name,
     subcategory?.name,
     transaction.accountName,
-    transaction.memberName,
     transaction.merchant,
     transaction.projectCategory,
     transaction.projectName,
@@ -129,9 +142,31 @@ function createSearchText(transaction: Transaction, categories: Category[]) {
   ].map(value => normalize(value || '')).filter(Boolean).join(' ')
 }
 
+function createDateTerms(value: string) {
+  const date = value.slice(0, 10)
+  const [year, month, day] = date.split('-')
+  if (!year || !month) return [date]
+  const monthNumber = String(Number(month))
+  return [
+    date,
+    `${year}${month}`,
+    `${year}-${month}`,
+    `${year}/${month}`,
+    `${year}.${month}`,
+    year,
+    `${year}年`,
+    `${year}年${monthNumber}月`,
+    `${year}年${month}月`,
+    `${monthNumber}月`,
+    `${month}月`,
+    day ? `${year}年${monthNumber}月${Number(day)}日` : ''
+  ]
+}
+
 function expandAiTerms(query: string, categories: Category[]) {
   const terms = new Set<string>()
   terms.add(query)
+  if (looksLikeDateQuery(query)) return [...terms]
   tokenize(query).forEach(term => terms.add(term))
 
   for (const group of LEDGER_SEARCH_SYNONYMS) {
@@ -152,7 +187,15 @@ function expandAiTerms(query: string, categories: Category[]) {
 
 function matchesAiSearch(record: SearchRecord, query: string, aiTerms: string[]) {
   if (aiTerms.some(term => record.text.includes(term))) return true
+  if (looksLikeDateQuery(query)) return false
   return bestCharacterOverlap(query, record.text) >= 0.72
+}
+
+function looksLikeDateQuery(query: string) {
+  return /^\d{4}年?(\d{1,2}月?)?$/.test(query) ||
+    /^\d{4}[-/.]\d{1,2}$/.test(query) ||
+    /^\d{6}$/.test(query) ||
+    /^\d{1,2}月$/.test(query)
 }
 
 function bestCharacterOverlap(query: string, text: string) {

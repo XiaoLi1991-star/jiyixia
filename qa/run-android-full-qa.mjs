@@ -355,6 +355,8 @@ async function main() {
     await clickText('.filter-chips button', '全部')
     await sleep(150)
     await click('.nav-capture')
+    await sleep(150)
+    await click('.sheet-tabs button', 1)
     await sleep(300)
     await setValue('.amount-input', '12.34')
     await setValue('input[placeholder="商家"]', 'QA商户')

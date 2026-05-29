@@ -2331,3 +2331,103 @@ body::after {
     inset 0 0 0 2px rgba(255, 253, 247, 0.24),
     0 10px 22px rgba(200, 93, 70, 0.22);
 }
+
+/* Mobile refinement pass: tighter top rhythm, straight labels, and custom period controls. */
+.app-shell {
+  padding-top: max(6px, env(safe-area-inset-top));
+}
+
+.screen {
+  padding-top: 4px;
+}
+
+.app-header,
+.page-header {
+  min-height: 72px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.home-screen .app-header {
+  min-height: 78px;
+}
+
+.app-header span,
+.month-card::before,
+.sheet-head span,
+.category-avatar {
+  transform: none;
+}
+
+.month-card::after,
+.bottom-nav::before {
+  transform: translateX(-50%);
+}
+
+.phone-frame::before {
+  top: calc(max(34px, env(safe-area-inset-top)) + 32px);
+}
+
+.date-scope-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ledger-toolbar {
+  z-index: 4;
+  overflow: visible;
+}
+
+.ledger-section {
+  z-index: 1;
+}
+
+.date-scope-tabs {
+  min-width: 0;
+}
+
+.date-scope-tabs button {
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.ledger-date-choice {
+  min-width: 0;
+}
+
+.ledger-date-choice .choice-button {
+  min-height: 36px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 254, 250, 0.96)),
+    var(--surface);
+  color: var(--brand-strong);
+  font-size: 13px;
+  font-weight: 760;
+  padding: 0 10px;
+}
+
+.ledger-date-choice .choice-menu,
+.month-choice .choice-menu {
+  min-width: 156px;
+}
+
+.report-head .month-choice {
+  width: 142px;
+}
+
+.transaction-copy p {
+  color: #586b63;
+}
+
+@media (max-width: 390px) {
+  .date-scope-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-date-choice .choice-menu {
+    min-width: 100%;
+  }
+}

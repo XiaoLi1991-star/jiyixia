@@ -76,4 +76,58 @@ describe('ledger search', () => {
     expect(result.items.map(item => item.id)).toEqual(['food'])
     expect(result.aiMatchedCount).toBe(1)
   })
+
+  it('searches year and month words in all ledger records', () => {
+    const transactions = [
+      tx({ id: 'may', date: '2026-05-12T08:00:00' }),
+      tx({ id: 'jan', date: '2026-01-12T08:00:00' }),
+      tx({ id: 'old', date: '2025-05-12T08:00:00' })
+    ]
+
+    expect(searchLedger({
+      transactions,
+      categories: DEFAULT_CATEGORIES,
+      period: 'all',
+      type: 'all',
+      query: '2026年5月',
+      aiAssist: true
+    }).items.map(item => item.id)).toEqual(['may'])
+
+    expect(searchLedger({
+      transactions,
+      categories: DEFAULT_CATEGORIES,
+      period: 'all',
+      type: 'all',
+      query: '2026年',
+      aiAssist: true
+    }).items.map(item => item.id)).toEqual(['may', 'jan'])
+  })
+
+  it('filters all records by explicit year or month controls', () => {
+    const transactions = [
+      tx({ id: 'may', date: '2026-05-12T08:00:00' }),
+      tx({ id: 'jan', date: '2026-01-12T08:00:00' }),
+      tx({ id: 'old', date: '2025-05-12T08:00:00' })
+    ]
+
+    expect(searchLedger({
+      transactions,
+      categories: DEFAULT_CATEGORIES,
+      period: 'all',
+      type: 'all',
+      query: '',
+      aiAssist: true,
+      dateFilter: { year: '2026' }
+    }).items.map(item => item.id)).toEqual(['may', 'jan'])
+
+    expect(searchLedger({
+      transactions,
+      categories: DEFAULT_CATEGORIES,
+      period: 'all',
+      type: 'all',
+      query: '',
+      aiAssist: true,
+      dateFilter: { month: '2026-05' }
+    }).items.map(item => item.id)).toEqual(['may'])
+  })
 })

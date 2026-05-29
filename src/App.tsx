@@ -51,6 +51,7 @@ import type { LedgerPeriod } from '@/lib/ledgerSearch'
 type TabKey = 'home' | 'ledger' | 'stats' | 'settings'
 type CaptureMode = 'ai' | 'manual'
 type StatsView = 'month' | 'year'
+type LedgerDateMode = 'all' | 'year' | 'month'
 
 interface TransactionFormState {
   id?: string
@@ -124,7 +125,7 @@ export default function App() {
         {tab === 'stats' && <StatsPage />}
         {tab === 'settings' && <SettingsPage />}
       </div>
-      <BottomNav active={tab} onTab={setTab} onCapture={() => openCapture('manual')} />
+      <BottomNav active={tab} onTab={setTab} onCapture={() => openCapture('ai')} />
       <QuickCaptureSheet
         mode={captureMode}
         open={captureOpen}
@@ -139,7 +140,7 @@ function BottomNav({ active, onTab, onCapture }: { active: TabKey; onTab: (tab: 
   return (
     <nav className="bottom-nav" aria-label="主导航">
       {TAB_ITEMS.slice(0, 2).map(item => <NavButton active={active === item.key} item={item} onClick={() => onTab(item.key)} key={item.key} />)}
-      <button className="nav-capture" onClick={onCapture} aria-label="记一笔">
+      <button className="nav-capture" onClick={onCapture} aria-label="AI 快记">
         <Plus size={26} />
       </button>
       {TAB_ITEMS.slice(2).map(item => <NavButton active={active === item.key} item={item} onClick={() => onTab(item.key)} key={item.key} />)}
@@ -162,13 +163,21 @@ function HomePage({ goLedger, openCapture }: { goLedger: () => void; openCapture
   const categories = useAppStore(state => state.categories)
   const drafts = useAppStore(state => state.drafts)
   const settings = useAppStore(state => state.settings)
+  const updateTransaction = useAppStore(state => state.updateTransaction)
+  const deleteTransaction = useAppStore(state => state.deleteTransaction)
   const confirmDraft = useAppStore(state => state.confirmDraft)
   const discardDraft = useAppStore(state => state.discardDraft)
+  const [editForm, setEditForm] = useState<TransactionFormState | null>(null)
   const hidden = settings.privacy.hideAmounts
   const confirmed = useMemo(() => transactions.filter(item => item.status === 'confirmed'), [transactions])
   const monthSummary = useMemo(() => createMonthSummary(transactions, categories, currentMonth()), [transactions, categories])
   const recent = useMemo(() => confirmed.slice(0, 6), [confirmed])
   const biggestExpense = monthSummary.expenseRank[0]
+  const submitEdit = () => {
+    if (!editForm?.id) return
+    updateTransaction(editForm.id, formToTransaction(editForm))
+    setEditForm(null)
+  }
 
   return (
     <section className="screen home-screen">
@@ -226,9 +235,21 @@ function HomePage({ goLedger, openCapture }: { goLedger: () => void; openCapture
           categories={categories}
           emptyText="还没有正式流水。可以点底部 + 先记一笔。"
           hidden={hidden}
+          onEdit={transaction => setEditForm(transactionToForm(transaction))}
           transactions={recent}
         />
       </section>
+      <EditTransactionSheet
+        categories={categories}
+        form={editForm}
+        onChange={setEditForm}
+        onClose={() => setEditForm(null)}
+        onDelete={id => {
+          deleteTransaction(id)
+          setEditForm(null)
+        }}
+        onSubmit={submitEdit}
+      />
     </section>
   )
 }
@@ -242,10 +263,23 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TransactionType | 'all'>('all')
   const [period, setPeriod] = useState<LedgerPeriod>('month')
+  const [dateMode, setDateMode] = useState<LedgerDateMode>('all')
+  const [ledgerYear, setLedgerYear] = useState(currentYear())
+  const [ledgerMonth, setLedgerMonth] = useState(currentMonth())
+  const [openLedgerPicker, setOpenLedgerPicker] = useState<'year' | 'month' | null>(null)
   const [aiAssist, setAiAssist] = useState(true)
   const [editForm, setEditForm] = useState<TransactionFormState | null>(null)
   const hidden = settings.privacy.hideAmounts
   const trimmedQuery = query.trim()
+  const allPeriodDateFilter = period === 'all'
+    ? dateMode === 'year'
+      ? { year: ledgerYear }
+      : dateMode === 'month'
+        ? { month: ledgerMonth }
+        : undefined
+    : undefined
+  const ledgerYears = useMemo(() => Array.from(new Set([ledgerYear, currentYear(), ...availableYears(transactions)])), [ledgerYear, transactions])
+  const ledgerMonths = useMemo(() => Array.from(new Set([ledgerMonth, currentMonth(), ...availableMonths(transactions)])), [ledgerMonth, transactions])
 
   const periodCounts = useMemo(() => Object.fromEntries(
     LEDGER_PERIOD_TABS.map(item => [item.key, countTransactionsByPeriod(transactions, item.key)])
@@ -256,29 +290,26 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
     period,
     type,
     query,
-    aiAssist
-  }), [transactions, categories, period, type, query, aiAssist])
+    aiAssist,
+    dateFilter: allPeriodDateFilter
+  }), [transactions, categories, period, type, query, aiAssist, allPeriodDateFilter])
   const filtered = searchResult.items
   const filteredSummary = useMemo(() => summarizeTransactions(filtered), [filtered])
   const periodLabel = LEDGER_PERIOD_TABS.find(item => item.key === period)?.label || '账本'
   const periodCount = periodCounts[period]
   const hasSearch = trimmedQuery.length > 0
-  const canRelaxSearch = hasSearch && (period !== 'all' || type !== 'all')
+  const dateScopeLabel = period === 'all' && allPeriodDateFilter
+    ? dateMode === 'year'
+      ? `${ledgerYear}年`
+      : formatMonthLabel(ledgerMonth)
+    : periodLabel
+  const canRelaxSearch = hasSearch && (period !== 'all' || type !== 'all' || dateMode !== 'all')
   const searchTerms = searchResult.aiTerms.filter(term => term !== trimmedQuery.toLowerCase()).slice(0, 5)
+  const ledgerYearOptions = ledgerYears.map(item => ({ id: item, label: `${item}年` }))
+  const ledgerMonthOptions = ledgerMonths.map(item => ({ id: item, label: formatMonthLabel(item) }))
 
   const startEdit = (transaction: Transaction) => {
-    setEditForm({
-      id: transaction.id,
-      type: transaction.type,
-      date: transaction.date.slice(0, 16),
-      categoryId: transaction.categoryId,
-      subcategoryId: transaction.subcategoryId,
-      amount: (transaction.amountCents / 100).toString(),
-      accountName: transaction.accountName,
-      memberName: transaction.memberName,
-      merchant: transaction.merchant,
-      note: transaction.note
-    })
+    setEditForm(transactionToForm(transaction))
   }
 
   const submitEdit = () => {
@@ -288,17 +319,18 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
   }
 
   const handleEmptyAction = () => {
-    if (canRelaxSearch) {
-      setPeriod('all')
-      setType('all')
-      return
-    }
+      if (canRelaxSearch) {
+        setPeriod('all')
+        setType('all')
+        setDateMode('all')
+        return
+      }
     setQuery('')
   }
 
   return (
     <section className="screen">
-      <PageHeader title="流水" subtitle={hasSearch ? `${periodLabel} · ${filtered.length} 条匹配` : `${periodLabel}账本 · ${periodCount} 条`} />
+      <PageHeader title="流水" subtitle={hasSearch ? `${dateScopeLabel} · ${filtered.length} 条匹配` : `${dateScopeLabel}账本 · ${allPeriodDateFilter ? filtered.length : periodCount} 条`} />
 
       <section className="ledger-toolbar">
         <div className="period-tabs" aria-label="账簿周期">
@@ -315,7 +347,7 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
         </div>
         <div className="search-field" role="search" aria-label="搜索流水">
           <Search size={18} />
-          <input aria-label="搜索账单" value={query} onChange={event => setQuery(event.target.value)} placeholder={`搜索${periodLabel}账单、分类、备注、商家`} />
+          <input aria-label="搜索账单" value={query} onChange={event => setQuery(event.target.value)} placeholder={`搜索${periodLabel}账单、分类、备注、金额、年月`} />
           {hasSearch && (
             <button className="search-clear" onClick={() => setQuery('')} type="button" aria-label="清空搜索">
               <X size={16} />
@@ -344,6 +376,56 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
             ))}
           </div>
         </div>
+        {period === 'all' && (
+          <div className="date-scope-panel">
+            <div className="filter-chips date-scope-tabs" aria-label="所有账本时间筛选">
+              {[
+                ['all', '全部时间'],
+                ['year', '按年'],
+                ['month', '按月']
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  className={dateMode === value ? 'active' : ''}
+                  onClick={() => setDateMode(value as LedgerDateMode)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {dateMode === 'year' && (
+              <ChoicePicker
+                className="ledger-date-choice"
+                label={`${ledgerYear}年`}
+                open={openLedgerPicker === 'year'}
+                options={ledgerYearOptions}
+                value={ledgerYear}
+                onClose={() => setOpenLedgerPicker(null)}
+                onSelect={value => {
+                  setLedgerYear(value)
+                  setOpenLedgerPicker(null)
+                }}
+                onToggle={() => setOpenLedgerPicker(openLedgerPicker === 'year' ? null : 'year')}
+              />
+            )}
+            {dateMode === 'month' && (
+              <ChoicePicker
+                className="ledger-date-choice month-choice"
+                label={formatMonthLabel(ledgerMonth)}
+                open={openLedgerPicker === 'month'}
+                options={ledgerMonthOptions}
+                value={ledgerMonth}
+                onClose={() => setOpenLedgerPicker(null)}
+                onSelect={value => {
+                  setLedgerMonth(value)
+                  setOpenLedgerPicker(null)
+                }}
+                onToggle={() => setOpenLedgerPicker(openLedgerPicker === 'month' ? null : 'month')}
+              />
+            )}
+          </div>
+        )}
         {hasSearch && aiAssist && (
           <p className={searchResult.aiMatchedCount > 0 ? 'ai-search-note matched' : 'ai-search-note'}>
             <Sparkles size={15} />
@@ -358,40 +440,20 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
         </div>
       </section>
 
-      {editForm && (
-        <div className="sheet-backdrop" onClick={() => setEditForm(null)}>
-          <section className="capture-sheet" role="dialog" aria-modal="true" aria-label="编辑流水" onClick={event => event.stopPropagation()}>
-            <div className="sheet-grip" />
-            <header className="sheet-head">
-              <div>
-                <span>流水详情</span>
-                <h2>编辑流水</h2>
-              </div>
-              <button className="icon-button ghost" onClick={() => setEditForm(null)} aria-label="关闭">
-                <X size={22} />
-              </button>
-            </header>
-            <TransactionForm
-              categories={categories}
-              compact
-              form={editForm}
-              onCancel={() => setEditForm(null)}
-              onChange={setEditForm}
-              onDelete={editForm.id ? () => {
-                if (window.confirm('确认删除这笔流水？')) {
-                  deleteTransaction(editForm.id!)
-                  setEditForm(null)
-                }
-              } : undefined}
-              onSubmit={submitEdit}
-              title="编辑流水"
-            />
-          </section>
-        </div>
-      )}
+      <EditTransactionSheet
+        categories={categories}
+        form={editForm}
+        onChange={setEditForm}
+        onClose={() => setEditForm(null)}
+        onDelete={id => {
+          deleteTransaction(id)
+          setEditForm(null)
+        }}
+        onSubmit={submitEdit}
+      />
 
       <section className="ledger-section">
-        <SectionHeading title={`${periodLabel}明细`} action="记一笔" onAction={() => openCapture('manual')} />
+        <SectionHeading title={`${dateScopeLabel}明细`} action="记一笔" onAction={() => openCapture('manual')} />
         <TransactionGroups
           categories={categories}
           emptyText={hasSearch ? (canRelaxSearch ? '当前范围没有匹配，放宽到所有账单再试试。' : '没有匹配的流水，可以清空搜索或换个说法。') : `${periodLabel}还没有流水。`}
@@ -406,6 +468,46 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
   )
 }
 
+function EditTransactionSheet({ categories, form, onChange, onClose, onDelete, onSubmit }: {
+  categories: Category[]
+  form: TransactionFormState | null
+  onChange: (form: TransactionFormState | null) => void
+  onClose: () => void
+  onDelete: (id: string) => void
+  onSubmit: () => void
+}) {
+  if (!form) return null
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <section className="capture-sheet" role="dialog" aria-modal="true" aria-label="编辑流水" onClick={event => event.stopPropagation()}>
+        <div className="sheet-grip" />
+        <header className="sheet-head">
+          <div>
+            <span>流水详情</span>
+            <h2>编辑流水</h2>
+          </div>
+          <button className="icon-button ghost" onClick={onClose} aria-label="关闭">
+            <X size={22} />
+          </button>
+        </header>
+        <TransactionForm
+          categories={categories}
+          compact
+          form={form}
+          onCancel={onClose}
+          onChange={nextForm => onChange(nextForm)}
+          onDelete={form.id ? () => {
+            if (window.confirm('确认删除这笔流水？')) onDelete(form.id!)
+          } : undefined}
+          onSubmit={onSubmit}
+          title="编辑流水"
+        />
+      </section>
+    </div>
+  )
+}
+
 function StatsPage() {
   const transactions = useAppStore(state => state.transactions)
   const categories = useAppStore(state => state.categories)
@@ -413,12 +515,19 @@ function StatsPage() {
   const months = useMemo(() => availableMonths(transactions), [transactions])
   const years = useMemo(() => availableYears(transactions), [transactions])
   const [view, setView] = useState<StatsView>('month')
-  const [openStatsPicker, setOpenStatsPicker] = useState<'year' | null>(null)
+  const [openStatsPicker, setOpenStatsPicker] = useState<'year' | 'month' | null>(null)
   const [month, setMonth] = useState(() => months[0] || currentMonth())
   const [year, setYear] = useState(() => years[0] || currentYear())
+  const monthOptions = useMemo(() => {
+    return Array.from(new Set([month, currentMonth(), ...months])).map(item => ({ id: item, label: formatMonthLabel(item) }))
+  }, [month, months])
   const yearOptions = useMemo(() => {
     return Array.from(new Set([year, ...years])).map(item => ({ id: item, label: item }))
   }, [year, years])
+  const chooseMonth = (nextMonth: string) => {
+    setMonth(nextMonth)
+    setOpenStatsPicker(null)
+  }
   const chooseYear = (nextYear: string) => {
     setYear(nextYear)
     setOpenStatsPicker(null)
@@ -442,7 +551,16 @@ function StatsPage() {
               <span>月度账单</span>
               <h2>{formatMonthLabel(month)}</h2>
             </div>
-            <MonthPicker value={month} onChange={setMonth} />
+            <ChoicePicker
+              className="month-choice"
+              label={formatMonthLabel(month)}
+              open={openStatsPicker === 'month'}
+              options={monthOptions}
+              value={month}
+              onClose={() => setOpenStatsPicker(null)}
+              onSelect={chooseMonth}
+              onToggle={() => setOpenStatsPicker(openStatsPicker === 'month' ? null : 'month')}
+            />
           </div>
           <section className="metric-grid">
             <Metric title="收入" value={formatCompactMoney(monthSummary.incomeCents, hidden)} tone="income" />
@@ -788,7 +906,6 @@ function TransactionForm({ form, categories, onChange, onSubmit, onCancel, onDel
           onToggle={() => setOpenPicker(openPicker === 'subcategory' ? null : 'subcategory')}
         />
         <input value={form.accountName} onChange={event => patch({ accountName: event.target.value })} placeholder="账户" />
-        <input value={form.memberName} onChange={event => patch({ memberName: event.target.value })} placeholder="成员" />
         <input value={form.merchant} onChange={event => patch({ merchant: event.target.value })} placeholder="商家" />
       </div>
       <textarea value={form.note} onChange={event => patch({ note: event.target.value })} placeholder="备注" />
@@ -848,21 +965,6 @@ function ChoicePicker({ label, value, options, open, onToggle, onClose, onSelect
         </div>
       )}
     </div>
-  )
-}
-
-function MonthPicker({ value, onChange, emptyLabel = '选择月份', className = '' }: {
-  value: string
-  onChange: (value: string) => void
-  emptyLabel?: string
-  className?: string
-}) {
-  return (
-    <label className={`picker-field ${className}`.trim()}>
-      <CalendarDays size={16} />
-      <span>{value ? formatMonthLabel(value) : emptyLabel}</span>
-      <input aria-label={emptyLabel} type="month" value={value} onChange={event => onChange(event.target.value)} />
-    </label>
   )
 }
 
@@ -1044,6 +1146,8 @@ function TransactionRow({ transaction, categories, hidden }: { transaction: Tran
   const subcategory = getSubcategory(categories, transaction.categoryId, transaction.subcategoryId)
   const visual = getCategoryVisual(category?.name, subcategory?.name, transaction.type)
   const Icon = visual.icon
+  const meta = [transaction.date.slice(11, 16), transaction.accountName].filter(Boolean).join(' · ')
+  const detail = [transaction.merchant, transaction.note].filter(Boolean).join(' · ')
 
   return (
     <div className="transaction-row">
@@ -1052,8 +1156,8 @@ function TransactionRow({ transaction, categories, hidden }: { transaction: Tran
       </span>
       <div className="transaction-copy">
         <strong>{subcategory?.name || category?.name || '未分类'}</strong>
-        <span>{transaction.date.slice(11, 16)} · {transaction.memberName || transaction.accountName}</span>
-        {(transaction.merchant || transaction.note) && <p>{[transaction.merchant, transaction.note].filter(Boolean).join(' · ')}</p>}
+        <span>{meta}</span>
+        {detail && <p>{detail}</p>}
       </div>
       <b className={transaction.type === 'income' ? 'amount income-text' : 'amount expense-text'}>
         {transaction.type === 'income' ? '+' : '-'}{formatCompactMoney(transaction.amountCents, hidden)}
@@ -1182,9 +1286,24 @@ function createEmptyForm(categories: Category[], type: TransactionType, previous
     subcategoryId: category.subcategories[0]?.id || '',
     amount: '',
     accountName: previous?.accountName || '现金',
-    memberName: previous?.memberName || '朱建华',
+    memberName: '',
     merchant: '',
     note: ''
+  }
+}
+
+function transactionToForm(transaction: Transaction): TransactionFormState {
+  return {
+    id: transaction.id,
+    type: transaction.type,
+    date: transaction.date.slice(0, 16),
+    categoryId: transaction.categoryId,
+    subcategoryId: transaction.subcategoryId,
+    amount: (transaction.amountCents / 100).toString(),
+    accountName: transaction.accountName,
+    memberName: transaction.memberName,
+    merchant: transaction.merchant,
+    note: transaction.note
   }
 }
 
@@ -1197,7 +1316,7 @@ function formToTransaction(form: TransactionFormState): Omit<Transaction, 'id' |
     accountName: form.accountName || '现金',
     currency: 'CNY',
     amountCents: parseAmountCents(form.amount),
-    memberName: form.memberName,
+    memberName: '',
     merchant: form.merchant,
     projectCategory: '',
     projectName: '',

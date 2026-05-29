@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CATEGORIES } from '@/data/categories'
-import { createDraftsFromAiRecords, parseAiEntryRecords } from './ai'
+import { aiEntryMessages, createDraftsFromAiRecords, parseAiEntryRecords } from './ai'
 
 describe('AI entry', () => {
   it('parses fenced JSON and creates drafts', () => {
@@ -28,5 +28,18 @@ describe('AI entry', () => {
 
     expect(result.drafts[0]?.type).toBe('income')
     expect(result.drafts[0]?.amountCents).toBe(8866)
+    expect(result.drafts[0]?.memberName).toBe('')
+  })
+
+  it('includes local classification hints without ledger history', () => {
+    const messages = createDraftsPromptText('停车12，水蜜桃49.14')
+
+    expect(messages).toContain('停车/停车费 -> 行车交通 / 停车')
+    expect(messages).toContain('把食材、用途、补充说明等保留到 note')
+    expect(messages).toContain('memberName 固定输出空字符串')
   })
 })
+
+function createDraftsPromptText(input: string) {
+  return aiEntryMessages(input, DEFAULT_CATEGORIES).map(message => message.content).join('\n')
+}

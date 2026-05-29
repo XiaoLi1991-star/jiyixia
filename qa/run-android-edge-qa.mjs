@@ -215,7 +215,6 @@ async function main() {
       assert(disabled, 'Submit button should stay disabled when amount is empty')
       await setValue('.amount-input', '123456789.12')
       await setValue('input[placeholder="账户"]', '招商银行测试账户')
-      await setValue('input[placeholder="成员"]', '朱建华')
       await setValue('input[placeholder="商家"]', '超长商户名称用于测试手机端布局是否稳定'.repeat(3))
       await setValue('.compact-form textarea', '超长备注用于测试换行、省略、按钮与底部安全区是否互相遮挡。'.repeat(4))
       await click('.compact-form .primary-button')

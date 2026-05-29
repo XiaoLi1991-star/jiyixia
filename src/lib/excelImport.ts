@@ -52,11 +52,11 @@ export function parseWorkbookSheets(sheets: Sheet[], fileName = '账本.xlsx', n
         accountName: readCell(row, index.account) || '现金',
         currency: readCell(row, index.currency) || 'CNY',
         amountCents,
-        memberName: readCell(row, index.member),
+        memberName: '',
         merchant: readCell(row, index.merchant),
         projectCategory: readCell(row, index.projectCategory),
         projectName: readCell(row, index.projectName),
-        note: buildNote(readCell(row, index.projectCategory), readCell(row, index.projectName)),
+        note: buildNote(readCell(row, index.note), readCell(row, index.projectCategory), readCell(row, index.projectName)),
         source: 'excel',
         status: 'confirmed',
         createdAt: now,
@@ -116,7 +116,8 @@ function indexHeaders(headers: string[]) {
     member: find('成员'),
     merchant: find('商家'),
     projectCategory: find('项目分类'),
-    projectName: find('项目')
+    projectName: find('项目'),
+    note: find('备注', '说明')
   }
 }
 
@@ -125,9 +126,9 @@ function readCell(row: unknown[], index: number): string {
   return normalizeName(row[index])
 }
 
-function buildNote(projectCategory: string, projectName: string): string {
-  const joined = [projectCategory, projectName].filter(Boolean).join(' / ')
-  return joined ? `项目：${joined}` : ''
+function buildNote(note: string, projectCategory: string, projectName: string): string {
+  const project = [projectCategory, projectName].filter(Boolean).join(' / ')
+  return [note, project ? `项目：${project}` : ''].filter(Boolean).join(' · ')
 }
 
 export function fingerprintTransactions(transactions: Transaction[]): string {
