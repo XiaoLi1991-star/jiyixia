@@ -10,6 +10,8 @@ dist/
 *.xls
 *.xlsm
 
+input_pic/
+
 qa/*.json
 qa/*.png
 qa/*.jpg
