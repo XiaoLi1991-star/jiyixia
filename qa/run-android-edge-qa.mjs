@@ -318,7 +318,7 @@ async function main() {
       await waitForText('一句话快记')
       await click('.ai-dock-button')
       await waitForText('一句话快记')
-      await setValue('.sheet-ai textarea', '停车12，午饭18，红包88.66')
+      await setValue('.sheet-ai textarea', '停车12，午饭18')
       const before = await evaluate(() => {
         const state = JSON.parse(localStorage.getItem('jiyixia-store') || '{}')?.state || {}
         return { transactions: state.transactions?.length || 0, drafts: state.drafts?.length || 0 }

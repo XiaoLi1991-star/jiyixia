@@ -89,7 +89,8 @@ const LEDGER_PERIOD_TABS: { key: LedgerPeriod; label: string }[] = [
 const LEDGER_INITIAL_RENDER_COUNT = 80
 const LEDGER_RENDER_INCREMENT = 80
 
-const QUICK_EXAMPLES = ['停车12', '午饭18', '红包88.66', '补贴20']
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index.toString().padStart(2, '0'))
+const BASE_MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => (index * 5).toString().padStart(2, '0'))
 
 const CATEGORY_VISUALS: Array<{ keywords: string[] } & CategoryVisual> = [
   { keywords: ['食品', '餐', '饭', '酒水'], icon: Utensils, fg: '#b66322', bg: '#fff1df' },
@@ -171,7 +172,7 @@ function HomePage({ goLedger, openCapture }: { goLedger: () => void; openCapture
   const hidden = settings.privacy.hideAmounts
   const confirmed = useMemo(() => transactions.filter(item => item.status === 'confirmed'), [transactions])
   const monthSummary = useMemo(() => createMonthSummary(transactions, categories, currentMonth()), [transactions, categories])
-  const recent = useMemo(() => confirmed.slice(0, 6), [confirmed])
+  const recent = useMemo(() => getLastTwoDaysTransactions(confirmed), [confirmed])
   const biggestExpense = monthSummary.expenseRank[0]
   const submitEdit = () => {
     if (!editForm?.id) return
@@ -212,7 +213,7 @@ function HomePage({ goLedger, openCapture }: { goLedger: () => void; openCapture
           <Sparkles size={20} />
           <span>
             <b>一句话快记</b>
-            <small>停车12，午饭18，红包88.66</small>
+            <small>停车12，午饭18</small>
           </span>
           <Send size={18} />
         </button>
@@ -230,10 +231,10 @@ function HomePage({ goLedger, openCapture }: { goLedger: () => void; openCapture
       )}
 
       <section className="ledger-section">
-        <SectionHeading title="最近流水" action="查看全部" onAction={goLedger} />
+        <SectionHeading title="近2天流水" action="查看全部" onAction={goLedger} />
         <TransactionGroups
           categories={categories}
-          emptyText="还没有正式流水。可以点底部 + 先记一笔。"
+          emptyText="近2天还没有正式流水。可以点底部 + 先记一笔。"
           hidden={hidden}
           onEdit={transaction => setEditForm(transactionToForm(transaction))}
           transactions={recent}
@@ -804,13 +805,8 @@ function QuickCaptureSheet({ mode, open, onClose, onModeChange }: {
             <textarea
               value={input}
               onChange={event => setInput(event.target.value)}
-              placeholder="例如：停车12，午饭18，红包88.66，补贴20"
+              placeholder="例如：停车12，午饭18"
             />
-            <div className="quick-chips">
-              {QUICK_EXAMPLES.map(example => (
-                <button key={example} type="button" onClick={() => setInput(example)}>{example}</button>
-              ))}
-            </div>
             <button className="primary-button" disabled={!input.trim() || loading} onClick={runAi}>
               <Send size={18} />
               {loading ? '解析中...' : '生成待确认草稿'}
@@ -969,12 +965,88 @@ function ChoicePicker({ label, value, options, open, onToggle, onClose, onSelect
 }
 
 function DateTimePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const parts = parseDateTimeParts(value)
+  const [dateText, setDateText] = useState(parts.date)
+  const minuteOptions = Array.from(new Set([...BASE_MINUTE_OPTIONS, parts.minute])).sort()
+
+  useEffect(() => {
+    setDateText(parts.date)
+  }, [parts.date])
+
+  const chooseDate = (date: string) => {
+    setDateText(date)
+    if (isValidDateText(date)) onChange(updateDateTimePart(value, { date }))
+  }
+
   return (
-    <label className="picker-field datetime-field">
-      <span>{formatDateTimeLabel(value)}</span>
-      <CalendarDays size={16} />
-      <input aria-label="选择日期时间" type="datetime-local" value={value} onChange={event => onChange(event.target.value)} />
-    </label>
+    <div
+      className="datetime-picker"
+      onBlur={event => {
+        const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null
+        if (!event.currentTarget.contains(nextTarget)) setOpen(false)
+      }}
+    >
+      <button className="picker-field datetime-field" type="button" onClick={() => setOpen(value => !value)} aria-expanded={open}>
+        <span>{formatDateTimeLabel(value)}</span>
+        <CalendarDays size={16} />
+      </button>
+      {open && (
+        <div className="datetime-menu">
+          <div className="datetime-actions">
+            <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => chooseDate(shiftDate(value, -1))}>前一天</button>
+            <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => onChange(localDateTimeInputValue())}>现在</button>
+            <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => chooseDate(shiftDate(value, 1))}>后一天</button>
+          </div>
+          <label className="datetime-date-input">
+            <span>日期</span>
+            <input
+              inputMode="numeric"
+              value={dateText}
+              onBlur={() => {
+                if (!isValidDateText(dateText)) setDateText(parts.date)
+              }}
+              onChange={event => chooseDate(event.target.value)}
+              placeholder="2026-05-30"
+            />
+          </label>
+          <div className="datetime-columns">
+            <div>
+              <span>小时</span>
+              <div className="datetime-grid hour-grid">
+                {HOUR_OPTIONS.map(hour => (
+                  <button
+                    className={parts.hour === hour ? 'active' : ''}
+                    key={hour}
+                    type="button"
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={() => onChange(updateDateTimePart(value, { hour }))}
+                  >
+                    {hour}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span>分钟</span>
+              <div className="datetime-grid">
+                {minuteOptions.map(minute => (
+                  <button
+                    className={parts.minute === minute ? 'active' : ''}
+                    key={minute}
+                    type="button"
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={() => onChange(updateDateTimePart(value, { minute }))}
+                  >
+                    {minute}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1212,6 +1284,16 @@ function summarizeTransactions(items: Transaction[]) {
   )
 }
 
+function getLastTwoDaysTransactions(transactions: Transaction[]) {
+  const today = localDateKey(new Date())
+  const yesterday = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000))
+  const allowedDates = new Set([today, yesterday])
+  return transactions
+    .filter(item => item.status === 'confirmed')
+    .filter(item => allowedDates.has(item.date.slice(0, 10)))
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
 function groupTransactionsByDate(transactions: Transaction[]) {
   const sorted = [...transactions]
     .filter(item => item.status === 'confirmed')
@@ -1245,6 +1327,35 @@ function formatDateTimeLabel(value: string) {
   const hour = `${date.getHours()}`.padStart(2, '0')
   const minute = `${date.getMinutes()}`.padStart(2, '0')
   return `${date.getFullYear()}年${month}月${day}日 ${hour}:${minute}`
+}
+
+function parseDateTimeParts(value: string) {
+  const fallback = localDateTimeInputValue()
+  const source = value && !Number.isNaN(new Date(value).getTime()) ? value : fallback
+  const [date, time = '00:00'] = source.split('T')
+  const [hour = '00', minute = '00'] = time.split(':')
+  return {
+    date,
+    hour: hour.padStart(2, '0').slice(0, 2),
+    minute: minute.padStart(2, '0').slice(0, 2)
+  }
+}
+
+function updateDateTimePart(value: string, patch: Partial<ReturnType<typeof parseDateTimeParts>>) {
+  const parts = { ...parseDateTimeParts(value), ...patch }
+  return `${parts.date}T${parts.hour}:${parts.minute}`
+}
+
+function shiftDate(value: string, offsetDays: number) {
+  const { date } = parseDateTimeParts(value)
+  const shifted = new Date(`${date}T12:00:00`)
+  shifted.setDate(shifted.getDate() + offsetDays)
+  return localDateKey(shifted)
+}
+
+function isValidDateText(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  return !Number.isNaN(new Date(`${value}T00:00:00`).getTime())
 }
 
 function formatDateGroupTitle(date: string) {

@@ -23,7 +23,7 @@ describe('AI entry', () => {
 
   it('supports Chinese income type', () => {
     const result = createDraftsFromAiRecords([
-      { type: '收入', category: '职业收入', subcategory: '工资收入', amountYuan: 88.66 }
+      { type: '收入', category: '人情收礼', subcategory: '所收红包', amountYuan: 88.66 }
     ], '红包88.66', DEFAULT_CATEGORIES, '2026-05-28T10:00:00')
 
     expect(result.drafts[0]?.type).toBe('income')

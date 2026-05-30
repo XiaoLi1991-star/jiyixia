@@ -11,7 +11,7 @@ const adb = process.env.ADB || 'C:\\Users\\zhujianhua\\AppData\\Local\\Android\\
 const serial = process.env.ADB_SERIAL || 'emulator-5554'
 const adbPort = process.env.ADB_PORT || '5038'
 const devtoolsPort = process.env.DEVTOOLS_PORT || '9222'
-const smokeInput = process.env.AI_SMOKE_INPUT || '停车12，午饭18，红包88.66'
+const smokeInput = process.env.AI_SMOKE_INPUT || '停车12，午饭18'
 
 function adbFile(args) {
   return execFileSync(adb, ['-P', adbPort, '-s', serial, ...args])

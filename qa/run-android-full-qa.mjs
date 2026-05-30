@@ -435,7 +435,7 @@ async function main() {
     })
     await click('.ai-dock-button')
     await sleep(250)
-    await clickText('.quick-chips button', '停车12')
+    await setValue('.sheet-ai textarea', '停车12，午饭18')
     await sleep(120)
     const before = await getState()
     await clickText('.primary-button', '生成待确认草稿')
