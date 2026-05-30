@@ -39,6 +39,7 @@ function Stroke-RoundRect($g, $pen, $x, $y, $w, $h, $r) {
 
 function Draw-Logo($g, [int]$size, [bool]$drawBackground, [bool]$roundMask) {
   $s = $size / 108.0
+  $contentScale = 0.84
   $paper = Color-Hex '#F4EADB'
   $paperLight = Color-Hex '#FFF8EA'
   $green = Color-Hex '#2F7D68'
@@ -56,6 +57,11 @@ function Draw-Logo($g, [int]$size, [bool]$drawBackground, [bool]$roundMask) {
     }
     $bgBrush.Dispose()
   }
+
+  $contentState = $g.Save()
+  $g.TranslateTransform(($size / 2), ($size / 2))
+  $g.ScaleTransform($contentScale, $contentScale)
+  $g.TranslateTransform(-($size / 2), -($size / 2))
 
   $shadowBrush = New-Object System.Drawing.SolidBrush (Color-Hex '#000000' 28)
   Fill-RoundRect $g $shadowBrush (29 * $s) (23 * $s) (56 * $s) (70 * $s) (9 * $s)
@@ -123,6 +129,7 @@ function Draw-Logo($g, [int]$size, [bool]$drawBackground, [bool]$roundMask) {
   $glyphPath.Dispose()
   $glyphFormat.Dispose()
 
+  $g.Restore($contentState)
 }
 
 function Save-Icon($path, [int]$size, [bool]$background, [bool]$round) {
