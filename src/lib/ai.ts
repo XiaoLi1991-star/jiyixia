@@ -99,7 +99,7 @@ export function createDraftsFromAiRecords(records: AiEntryRecord[], input: strin
     }
 
     return {
-      id: createId('draft', `${input}-${index}-${now}`),
+      id: createId('draft', `${input}-${index}-${now}-${Math.random()}`),
       type,
       date: normalizeDate(record.date || now),
       categoryId: mapping.categoryId,

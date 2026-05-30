@@ -1,7 +1,7 @@
 {
   "name": "jiyixia",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "本地优先的 Android 日常流水账 App，支持 AI 快记、Excel 导入和月度/年度统计。",
   "license": "MIT",
   "repository": {

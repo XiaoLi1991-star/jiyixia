@@ -25,6 +25,8 @@
   --shadow-sm: 0 4px 12px rgba(34, 55, 45, 0.055);
   --shadow-md: 0 14px 34px rgba(34, 55, 45, 0.12);
   --shadow-paper: 0 2px 10px rgba(34, 55, 45, 0.045);
+  --safe-bottom-space: max(env(safe-area-inset-bottom), 12px);
+  --bottom-nav-reserve: calc(126px + var(--safe-bottom-space));
   --paper-fiber:
     radial-gradient(circle at 16px 12px, rgba(70, 57, 37, 0.028) 0 1px, transparent 1.4px),
     radial-gradient(circle at 76% 18%, rgba(47, 125, 104, 0.026) 0 1px, transparent 1.5px);
@@ -93,7 +95,7 @@ button {
   padding:
     max(10px, env(safe-area-inset-top))
     14px
-    calc(102px + env(safe-area-inset-bottom));
+    var(--bottom-nav-reserve);
 }
 
 .phone-frame {
@@ -497,6 +499,49 @@ button {
 .ledger-item-button:focus-visible {
   outline: 2px solid rgba(47, 125, 104, 0.45);
   outline-offset: 2px;
+}
+
+.swipe-ledger-item {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.swipe-actions {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 0;
+  display: grid;
+  width: 86px;
+  place-items: stretch;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #c95143, #a83f32);
+}
+
+.swipe-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 86px;
+  min-height: 100%;
+  background: transparent;
+  color: #fffdf7;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.swipe-content {
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  transition: transform 160ms ease;
+  will-change: transform;
+}
+
+.swipe-content.dragging {
+  transition: none;
 }
 
 .load-more-panel {
@@ -1624,7 +1669,7 @@ label {
   padding:
     8px
     max(10px, env(safe-area-inset-right))
-    calc(8px + env(safe-area-inset-bottom))
+    calc(12px + var(--safe-bottom-space))
     max(10px, env(safe-area-inset-left));
   backdrop-filter: blur(8px);
   box-shadow:

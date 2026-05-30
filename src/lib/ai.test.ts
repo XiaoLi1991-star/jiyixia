@@ -31,6 +31,14 @@ describe('AI entry', () => {
     expect(result.drafts[0]?.memberName).toBe('')
   })
 
+  it('keeps duplicate drafts distinct even with the same input time', () => {
+    const records = [{ type: 'expense' as const, category: '行车交通', subcategory: '停车', amountYuan: 12 }]
+    const first = createDraftsFromAiRecords(records, '停车12', DEFAULT_CATEGORIES, '2026-05-28T10:00:00')
+    const second = createDraftsFromAiRecords(records, '停车12', DEFAULT_CATEGORIES, '2026-05-28T10:00:00')
+
+    expect(first.drafts[0]?.id).not.toBe(second.drafts[0]?.id)
+  })
+
   it('includes local classification hints without ledger history', () => {
     const messages = createDraftsPromptText('停车12，水蜜桃49.14')
 

@@ -50,6 +50,15 @@ function createInitialState() {
   }
 }
 
+function createUnusedId(prefix: string, existingIds: Set<string>) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const id = createId(prefix, `${Date.now()}-${Math.random()}-${attempt}`)
+    if (!existingIds.has(id)) return id
+  }
+
+  return createId(prefix, `${Date.now()}-${Math.random()}-${globalThis.crypto?.randomUUID?.() || existingIds.size}`)
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -61,12 +70,13 @@ export const useAppStore = create<AppState>()(
           const category = state.categories.find(item => item.id === transaction.categoryId)
           const subcategory = category?.subcategories.find(item => item.id === transaction.subcategoryId)
           const mapping = ensureCategory(state.categories, transaction.type, category?.name || '', subcategory?.name || '')
+          const id = createUnusedId('tx', new Set(state.transactions.map(item => item.id)))
           return {
             categories: mapping.categories,
             transactions: [
               {
                 ...transaction,
-                id: createId('tx'),
+                id,
                 categoryId: transaction.categoryId || mapping.categoryId,
                 subcategoryId: transaction.subcategoryId || mapping.subcategoryId,
                 source: 'manual',

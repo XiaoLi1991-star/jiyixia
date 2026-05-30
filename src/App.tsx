@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { App as CapacitorApp } from '@capacitor/app'
 import {
   Banknote,
   CalendarDays,
@@ -88,6 +89,31 @@ const LEDGER_PERIOD_TABS: { key: LedgerPeriod; label: string }[] = [
 
 const LEDGER_INITIAL_RENDER_COUNT = 80
 const LEDGER_RENDER_INCREMENT = 80
+const SWIPE_ACTION_WIDTH = 86
+
+function useAndroidBackClose(active: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!active) return
+
+    let removed = false
+    let removeListener: (() => void) | undefined
+
+    void CapacitorApp.addListener('backButton', () => {
+      onClose()
+    }).then(handle => {
+      if (removed) {
+        void handle.remove()
+        return
+      }
+      removeListener = () => void handle.remove()
+    })
+
+    return () => {
+      removed = true
+      removeListener?.()
+    }
+  }, [active, onClose])
+}
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index.toString().padStart(2, '0'))
 const BASE_MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => (index * 5).toString().padStart(2, '0'))
@@ -236,6 +262,7 @@ function HomePage({ goLedger, openCapture }: { goLedger: () => void; openCapture
           categories={categories}
           emptyText="近2天还没有正式流水。可以点底部 + 先记一笔。"
           hidden={hidden}
+          onDelete={deleteTransaction}
           onEdit={transaction => setEditForm(transactionToForm(transaction))}
           transactions={recent}
         />
@@ -461,6 +488,7 @@ function LedgerPage({ openCapture }: { openCapture: (mode: CaptureMode) => void 
           hidden={hidden}
           onEmptyAction={hasSearch ? handleEmptyAction : undefined}
           emptyActionLabel={hasSearch ? (canRelaxSearch ? '放宽范围再搜' : '清空搜索') : undefined}
+          onDelete={deleteTransaction}
           onEdit={startEdit}
           transactions={filtered}
         />
@@ -477,6 +505,8 @@ function EditTransactionSheet({ categories, form, onChange, onClose, onDelete, o
   onDelete: (id: string) => void
   onSubmit: () => void
 }) {
+  useAndroidBackClose(Boolean(form), onClose)
+
   if (!form) return null
 
   return (
@@ -749,6 +779,8 @@ function QuickCaptureSheet({ mode, open, onClose, onModeChange }: {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState(() => createEmptyForm(categories, 'expense'))
+
+  useAndroidBackClose(open, onClose)
 
   if (!open) return null
 
@@ -1152,7 +1184,7 @@ function DraftList({ drafts, categories, hidden, onConfirm, onDiscard }: {
   )
 }
 
-function TransactionGroups({ transactions, categories, hidden, emptyText, emptyActionLabel, onEmptyAction, onEdit }: {
+function TransactionGroups({ transactions, categories, hidden, emptyText, emptyActionLabel, onEmptyAction, onEdit, onDelete }: {
   transactions: Transaction[]
   categories: Category[]
   hidden: boolean
@@ -1160,6 +1192,7 @@ function TransactionGroups({ transactions, categories, hidden, emptyText, emptyA
   emptyActionLabel?: string
   onEmptyAction?: () => void
   onEdit?: (transaction: Transaction) => void
+  onDelete?: (id: string) => void
 }) {
   const [visibleCount, setVisibleCount] = useState(LEDGER_INITIAL_RENDER_COUNT)
   const visibleTransactions = useMemo(() => transactions.slice(0, visibleCount), [transactions, visibleCount])
@@ -1183,13 +1216,17 @@ function TransactionGroups({ transactions, categories, hidden, emptyText, emptyA
           </div>
           <div className="ledger-list">
             {group.items.map(item => (
-              onEdit ? (
-                <button
-                  className="ledger-item ledger-item-button"
+              onEdit && onDelete ? (
+                <SwipeableTransactionItem
+                  categories={categories}
+                  hidden={hidden}
                   key={item.id}
-                  onClick={() => onEdit(item)}
-                  type="button"
-                >
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                  transaction={item}
+                />
+              ) : onEdit ? (
+                <button className="ledger-item ledger-item-button" key={item.id} onClick={() => onEdit(item)} type="button">
                   <TransactionRow categories={categories} hidden={hidden} transaction={item} />
                 </button>
               ) : (
@@ -1209,6 +1246,109 @@ function TransactionGroups({ transactions, categories, hidden, emptyText, emptyA
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function SwipeableTransactionItem({ transaction, categories, hidden, onEdit, onDelete }: {
+  transaction: Transaction
+  categories: Category[]
+  hidden: boolean
+  onEdit: (transaction: Transaction) => void
+  onDelete: (id: string) => void
+}) {
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const startRef = useRef<{ x: number; y: number; base: number; swiping: boolean } | null>(null)
+  const ignoreClickRef = useRef(false)
+  const offsetRef = useRef(0)
+
+  useEffect(() => {
+    offsetRef.current = offset
+  }, [offset])
+
+  useEffect(() => {
+    offsetRef.current = 0
+    setOffset(0)
+  }, [transaction.id])
+
+  const close = () => {
+    offsetRef.current = 0
+    setOffset(0)
+  }
+
+  return (
+    <div className="swipe-ledger-item">
+      <div className="swipe-actions" aria-hidden={offset === 0}>
+        <button className="swipe-delete-button" type="button" tabIndex={offset > 0 ? 0 : -1} onClick={() => onDelete(transaction.id)}>
+          <Trash2 size={18} />
+          删除
+        </button>
+      </div>
+      <button
+        className={dragging ? 'ledger-item ledger-item-button swipe-content dragging' : 'ledger-item ledger-item-button swipe-content'}
+        onClick={() => {
+          if (ignoreClickRef.current) {
+            ignoreClickRef.current = false
+            return
+          }
+          if (offset > 0) {
+            close()
+            return
+          }
+          onEdit(transaction)
+        }}
+        onPointerDown={event => {
+          if (event.pointerType === 'mouse' && event.button !== 0) return
+          startRef.current = { x: event.clientX, y: event.clientY, base: offset, swiping: false }
+        }}
+        onPointerMove={event => {
+          const start = startRef.current
+          if (!start) return
+          const dx = event.clientX - start.x
+          const dy = event.clientY - start.y
+
+          if (!start.swiping) {
+            if (Math.abs(dx) < 8) return
+            if (Math.abs(dy) > Math.abs(dx)) {
+              startRef.current = null
+              return
+            }
+            start.swiping = true
+            setDragging(true)
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }
+
+          event.preventDefault()
+          const nextOffset = Math.min(SWIPE_ACTION_WIDTH, Math.max(0, start.base - dx))
+          offsetRef.current = nextOffset
+          setOffset(nextOffset)
+        }}
+        onPointerUp={event => {
+          const start = startRef.current
+          if (start?.swiping) {
+            ignoreClickRef.current = true
+            const nextOffset = offsetRef.current >= SWIPE_ACTION_WIDTH * 0.48 ? SWIPE_ACTION_WIDTH : 0
+            offsetRef.current = nextOffset
+            setOffset(nextOffset)
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            }
+          }
+          setDragging(false)
+          startRef.current = null
+        }}
+        onPointerCancel={() => {
+          setDragging(false)
+          startRef.current = null
+          offsetRef.current = 0
+          setOffset(0)
+        }}
+        style={{ transform: `translateX(${-offset}px)` }}
+        type="button"
+      >
+        <TransactionRow categories={categories} hidden={hidden} transaction={transaction} />
+      </button>
     </div>
   )
 }
